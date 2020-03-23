@@ -73,10 +73,12 @@ func main() {
   var tasks = [](*models.Task) {
     &(models.Task {
       ID: "B07XV4NHHN",
+      Name: "健身环大冒险",
       UpdatedAt: time.Now(),
     }),
     &(models.Task {
       ID: "B084DDDNRP",
+      Name: "Switch动物森友会主题限定",
       UpdatedAt: time.Now(),
     }),
   }

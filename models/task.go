@@ -12,6 +12,7 @@ import (
 
 type Task struct {
 	ID                string    `db:"id, primarykey" json:"id"`
+  Name              string    `db:"name" json:"name"`
 	Price             float64   `db:"threshold" json:"threshold"`
 	Image             string    `db:"image" json:"image"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at" pg:",null"`
