@@ -87,6 +87,13 @@ func main() {
 			UpdatedAt: time.Now(),
 		}),
 	}
+	f, err := os.OpenFile("logsfile", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+	log.SetOutput(f)
+
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())

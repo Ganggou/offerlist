@@ -3,7 +3,6 @@ package models
 import (
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -21,14 +20,6 @@ type Task struct {
 }
 
 func (t *Task) FetchPrice() {
-	f, err := os.OpenFile("logfile", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer f.Close()
-
-	log.SetOutput(f)
-	log.Println("This is a test log entry")
 	c := colly.NewCollector()
 
 	c.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
@@ -53,6 +44,7 @@ func (t *Task) FetchPrice() {
 			}
 			t.Price = price
 			t.UpdatedAt = time.Now()
+			log.Printf("get %v: %v", t.Name, t.Price)
 			break
 		}
 	})
