@@ -70,18 +70,23 @@ func main() {
 		port = "80"
 	}
 
-  var tasks = [](*models.Task) {
-    &(models.Task {
-      ID: "B07XV4NHHN",
-      Name: "健身环大冒险",
-      UpdatedAt: time.Now(),
-    }),
-    &(models.Task {
-      ID: "B084DDDNRP",
-      Name: "Switch动物森友会主题限定",
-      UpdatedAt: time.Now(),
-    }),
-  }
+	var tasks = [](*models.Task){
+		&(models.Task{
+			ID:        "B07XV4NHHN",
+			Name:      "健身环大冒险-美亚",
+			UpdatedAt: time.Now(),
+		}),
+		&(models.Task{
+			ID:        "B084DDDNRP",
+			Name:      "Switch动物森友会主题限定-美亚",
+			UpdatedAt: time.Now(),
+		}),
+		&(models.Task{
+			ID:        "B07SL6ZXBL",
+			Name:      "《动物森友会》游戏卡带-美亚",
+			UpdatedAt: time.Now(),
+		}),
+	}
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
@@ -100,19 +105,19 @@ func main() {
 		log.Fatal("JWT Error:" + err.Error())
 	}
 
-  go func() {
-    d := time.Duration(time.Minute*10)
+	go func() {
+		d := time.Duration(time.Minute * 10)
 
-    t := time.NewTicker(d)
-    defer t.Stop()
+		t := time.NewTicker(d)
+		defer t.Stop()
 
-    for {
-      <- t.C
-      for _, task := range tasks {
-        task.FetchPrice()
-      } 
-    }
-  }()
+		for {
+			for _, task := range tasks {
+				task.FetchPrice()
+			}
+			<-t.C
+		}
+	}()
 
 	r.POST("/users/sign_in", authMiddleware.LoginHandler)
 	r.POST("/users", Signup)
