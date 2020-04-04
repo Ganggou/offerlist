@@ -1,155 +1,88 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
+	"net"
 	"os"
+	"strings"
+	"syscall"
 	"time"
 
-	"qiyetalk-server-go/db"
-	"qiyetalk-server-go/models"
-	"qiyetalk-server-go/utils"
-
-	jwt "github.com/appleboy/gin-jwt/v2"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
+	"offerlist/colly"
 )
 
-func helloHandler(c *gin.Context) {
-	claims := jwt.ExtractClaims(c)
-	user, _ := c.Get(models.IdentityKey)
-	fmt.Println(claims)
-	c.JSON(200, gin.H{
-		"userID": claims[models.IdentityKey],
-		"email":  user.(*models.User).Email,
-		"text":   "Hello World.",
-	})
+func spider(c *net.Conn, input string) {
+	params := strings.Split(input, " ")
+	if len(params) != 2 {
+		Reply(c, "err")
+		return
+	}
+	platform := params[0]
+	shortId := params[1]
+	switch platform {
+	case "UA":
+		data := colly.AmazonA(shortId)
+		log.Println(data)
+		Reply(c, data)
+	default:
+		Reply(c, "err")
+	}
 }
 
-// Signup ...
-func Signup(c *gin.Context) {
-	data := &models.CredentialsWrapper{}
-	if err := c.ShouldBindJSON(&data); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+const SockAddr = "/tmp/offerlist.sock"
 
-	creds := data.User
-
-	if creds.Password != creds.PasswordConfirmation {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Your password and confirmation password do not match"})
-		return
+func Listen() (net.Listener, error) {
+	if err := os.RemoveAll(SockAddr); err != nil {
+		log.Fatal(err)
 	}
+	oldMask := syscall.Umask(0000)
+	ln, err := net.Listen("unix", SockAddr)
+	syscall.Umask(oldMask)
+	return ln, err
+}
 
-	_db := db.GetDB()
+func Reply(c *net.Conn, txt string) {
+	msg := txt + "\n"
+	if c != nil {
+		(*c).Write([]byte(msg))
+	}
+}
 
-	user := models.FindByEmail(creds.Email)
-	if user != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Your account has been registered"})
-		return
+func handler(c net.Conn) {
+	defer c.Close()
+	for {
+		buf := make([]byte, 512)
+		nr, err := c.Read(buf)
+		if err != nil {
+			break
+		}
+		input := strings.TrimSuffix(string(buf[0:nr]), "\n")
+		switch input {
+		case "ping":
+			Reply(&c, "pong")
+		default:
+			if strings.HasPrefix(input, "colly") {
+				spider(&c, strings.TrimPrefix(input, "colly "))
+			}
+		}
 	}
-	encryptedPassword, _ := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
-	err := _db.Insert(&models.User{
-		Email:             creds.Email,
-		EncryptedPassword: string(encryptedPassword),
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
-	})
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.Status(200)
 }
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "80"
-	}
-
-	var tasks = [](*models.Task){
-		&(models.Task{
-			ID:        "B07XV4NHHN",
-			Name:      "健身环大冒险-美亚",
-			UpdatedAt: time.Now(),
-		}),
-		&(models.Task{
-			ID:        "B084DDDNRP",
-			Name:      "Switch动物森友会主题限定-美亚",
-			UpdatedAt: time.Now(),
-		}),
-		&(models.Task{
-			ID:        "B07SL6ZXBL",
-			Name:      "《动物森友会》游戏卡带-美亚",
-			UpdatedAt: time.Now(),
-		}),
-	}
-	f, err := os.OpenFile("logsfile", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	ln, err := Listen()
 	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer f.Close()
-	log.SetOutput(f)
-
-	r := gin.New()
-	r.Use(gin.Logger())
-	r.Use(gin.Recovery())
-	r.Use(cors.New(cors.Config{
-		AllowAllOrigins:  true,
-		AllowMethods:     []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"},
-		AllowHeaders:     []string{"*"},
-		ExposeHeaders:    []string{"Authorization"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
-
-	authMiddleware, err := utils.JwtMiddleWare()
-
-	if err != nil {
-		log.Fatal("JWT Error:" + err.Error())
+		log.Printf("Listen error: %v", err)
 	}
 
-	go func() {
-		d := time.Duration(time.Minute * 10)
-
-		t := time.NewTicker(d)
-		defer t.Stop()
-
-		for {
-			for _, task := range tasks {
-				task.FetchPrice()
+	for {
+		c, err := ln.Accept()
+		if err == nil {
+			go handler(c)
+		} else {
+			if strings.HasSuffix(err.Error(), "use of closed network connection") {
+				break
 			}
-			<-t.C
+			time.Sleep(time.Second)
 		}
-	}()
-
-	r.POST("/users/sign_in", authMiddleware.LoginHandler)
-	r.POST("/users", Signup)
-
-	r.NoRoute(authMiddleware.MiddlewareFunc(), func(c *gin.Context) {
-		claims := jwt.ExtractClaims(c)
-		log.Printf("NoRoute claims: %#v\n", claims)
-		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
-	})
-
-	r.GET("/ping", func(c *gin.Context) {
-		c.String(200, "pong")
-	})
-
-	r.GET("/data", func(c *gin.Context) {
-		c.JSON(200, gin.H{"data": tasks})
-	})
-
-	auth := r.Group("/auth")
-	// Refresh time can be longer than token timeout
-	auth.GET("/refresh_token", authMiddleware.RefreshHandler)
-	auth.Use(authMiddleware.MiddlewareFunc())
-	{
-		auth.GET("/hello", helloHandler)
 	}
-
-	r.Run(":" + port)
 }
