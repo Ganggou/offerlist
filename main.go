@@ -57,6 +57,7 @@ func handler(c net.Conn) {
 			break
 		}
 		input := strings.TrimSuffix(string(buf[0:nr]), "\n")
+		log.Println(input)
 		switch input {
 		case "ping":
 			Reply(&c, "pong")
