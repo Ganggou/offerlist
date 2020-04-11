@@ -14,7 +14,7 @@ func Colly(c *gin.Context) {
 	platform_id := c.Query("platform_id")
 	short_id := c.Query("short_id")
 	fmt.Println(short_id, platform_id)
-	c.String(200, models.FetchPrice(platform_id, short_id))
+	c.JSON(200, gin.H{"price": models.FetchPrice(platform_id, short_id)})
 }
 
 func main() {
