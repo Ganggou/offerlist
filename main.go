@@ -2,66 +2,19 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
+	"offerlist/models"
 	"os"
 	"time"
 
-	"qiyetalk-server-go/db"
-	"qiyetalk-server-go/models"
-	"qiyetalk-server-go/utils"
-
-	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
-func helloHandler(c *gin.Context) {
-	claims := jwt.ExtractClaims(c)
-	user, _ := c.Get(models.IdentityKey)
-	fmt.Println(claims)
-	c.JSON(200, gin.H{
-		"userID": claims[models.IdentityKey],
-		"email":  user.(*models.User).Email,
-		"text":   "Hello World.",
-	})
-}
-
-// Signup ...
-func Signup(c *gin.Context) {
-	data := &models.CredentialsWrapper{}
-	if err := c.ShouldBindJSON(&data); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	creds := data.User
-
-	if creds.Password != creds.PasswordConfirmation {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Your password and confirmation password do not match"})
-		return
-	}
-
-	_db := db.GetDB()
-
-	user := models.FindByEmail(creds.Email)
-	if user != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Your account has been registered"})
-		return
-	}
-	encryptedPassword, _ := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
-	err := _db.Insert(&models.User{
-		Email:             creds.Email,
-		EncryptedPassword: string(encryptedPassword),
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
-	})
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.Status(200)
+func Colly(c *gin.Context) {
+	platform_id := c.Query("platform_id")
+	short_id := c.Query("short_id")
+	fmt.Println(short_id, platform_id)
+	c.String(200, models.FetchPrice(platform_id, short_id))
 }
 
 func main() {
@@ -69,30 +22,6 @@ func main() {
 	if port == "" {
 		port = "80"
 	}
-
-	var tasks = [](*models.Task){
-		&(models.Task{
-			ID:        "B07XV4NHHN",
-			Name:      "健身环大冒险-美亚",
-			UpdatedAt: time.Now(),
-		}),
-		&(models.Task{
-			ID:        "B084DDDNRP",
-			Name:      "Switch动物森友会主题限定-美亚",
-			UpdatedAt: time.Now(),
-		}),
-		&(models.Task{
-			ID:        "B07SL6ZXBL",
-			Name:      "《动物森友会》游戏卡带-美亚",
-			UpdatedAt: time.Now(),
-		}),
-	}
-	f, err := os.OpenFile("logsfile", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer f.Close()
-	log.SetOutput(f)
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -106,50 +35,10 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	authMiddleware, err := utils.JwtMiddleWare()
-
-	if err != nil {
-		log.Fatal("JWT Error:" + err.Error())
-	}
-
-	go func() {
-		d := time.Duration(time.Minute * 10)
-
-		t := time.NewTicker(d)
-		defer t.Stop()
-
-		for {
-			for _, task := range tasks {
-				task.FetchPrice()
-			}
-			<-t.C
-		}
-	}()
-
-	r.POST("/users/sign_in", authMiddleware.LoginHandler)
-	r.POST("/users", Signup)
-
-	r.NoRoute(authMiddleware.MiddlewareFunc(), func(c *gin.Context) {
-		claims := jwt.ExtractClaims(c)
-		log.Printf("NoRoute claims: %#v\n", claims)
-		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
-	})
-
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(200, "pong")
 	})
 
-	r.GET("/data", func(c *gin.Context) {
-		c.JSON(200, gin.H{"data": tasks})
-	})
-
-	auth := r.Group("/auth")
-	// Refresh time can be longer than token timeout
-	auth.GET("/refresh_token", authMiddleware.RefreshHandler)
-	auth.Use(authMiddleware.MiddlewareFunc())
-	{
-		auth.GET("/hello", helloHandler)
-	}
-
+	r.POST("/colly", Colly)
 	r.Run(":" + port)
 }
