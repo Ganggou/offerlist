@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"offerlist/models"
 	"os"
 	"time"
@@ -13,8 +12,12 @@ import (
 func Colly(c *gin.Context) {
 	platform_id := c.Query("platform_id")
 	short_id := c.Query("short_id")
-	fmt.Println(short_id, platform_id)
-	c.JSON(200, gin.H{"price": models.FetchPrice(platform_id, short_id)})
+	res := models.FetchPrice(platform_id, short_id)
+	if res == "err" {
+		c.String(200, "err")
+	} else {
+		c.JSON(200, gin.H{"price": res})
+	}
 }
 
 func main() {
