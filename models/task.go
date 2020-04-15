@@ -69,7 +69,7 @@ func Taobao(shortId string) string {
 			log.Println(err)
 		}
 		priceNode := htmlquery.Find(doc, `//*[@class="tb-rmb-num"]`)
-		priceString := strings.Trim(htmlquery.InnerText(priceNode[0]), " ")
+		priceString := strings.Trim(strings.Split(htmlquery.InnerText(priceNode[0]), "-")[0], " ")
 		price, err = strconv.ParseFloat(priceString, 10)
 		if err != nil {
 			log.Println(err)
