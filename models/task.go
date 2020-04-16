@@ -12,16 +12,18 @@ import (
 
 func FetchPrice(platformId, shortId string) string {
 	switch platformId {
+	case "CA":
+		return amazonC(shortId)
 	case "UA":
-		return amazonA(shortId)
+		return amazonU(shortId)
 	case "TAO":
-		return Taobao(shortId)
+		return taobao(shortId)
 	default:
 	}
 	return "err"
 }
 
-func amazonA(shortId string) string {
+func amazonU(shortId string) string {
 	c := colly.NewCollector()
 	var wg sync.WaitGroup
 	var price float64
@@ -54,7 +56,35 @@ func amazonA(shortId string) string {
 	return strconv.Itoa(int(price * 100))
 }
 
-func Taobao(shortId string) string {
+func amazonC(shortId string) string {
+	c := colly.NewCollector()
+	var wg sync.WaitGroup
+	var price float64
+
+	wg.Add(1)
+
+	c.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+
+	c.OnResponse(func(r *colly.Response) {
+		doc, err := htmlquery.Parse(strings.NewReader(string(r.Body)))
+		if err != nil {
+			log.Println(err)
+		}
+		priceNode := htmlquery.Find(doc, `//span[@class="a-size-medium a-color-price priceBlockBuyingPriceString"]`)
+		priceString := strings.Trim(strings.ReplaceAll(htmlquery.InnerText(priceNode[0])[3:], ",", ""), "")
+		price, err = strconv.ParseFloat(priceString, 10)
+		if err != nil {
+			log.Println(err)
+		}
+		wg.Done()
+	})
+
+	c.Visit("https://amazon.cn/dp/" + shortId)
+	wg.Wait()
+	return strconv.Itoa(int(price * 100))
+}
+
+func taobao(shortId string) string {
 	c := colly.NewCollector()
 	var wg sync.WaitGroup
 	var price float64
