@@ -60,6 +60,7 @@ func amazonC(shortId string) string {
 	c := colly.NewCollector()
 	var wg sync.WaitGroup
 	var price float64
+	var result string
 
 	wg.Add(1)
 
@@ -71,17 +72,22 @@ func amazonC(shortId string) string {
 			log.Println(err)
 		}
 		priceNode := htmlquery.Find(doc, `//span[@class="a-size-medium a-color-price priceBlockBuyingPriceString"]`)
-		priceString := strings.Trim(strings.ReplaceAll(htmlquery.InnerText(priceNode[0])[3:], ",", ""), "")
-		price, err = strconv.ParseFloat(priceString, 10)
-		if err != nil {
-			log.Println(err)
+		if len(priceNode) > 0 {
+			priceString := strings.Trim(strings.ReplaceAll(htmlquery.InnerText(priceNode[0])[3:], ",", ""), "")
+			price, err = strconv.ParseFloat(priceString, 10)
+			if err != nil {
+				log.Println(err)
+			}
+			result = strconv.Itoa(int(price * 100))
+		} else {
+			result = "-1"
 		}
 		wg.Done()
 	})
 
 	c.Visit("https://amazon.cn/dp/" + shortId)
 	wg.Wait()
-	return strconv.Itoa(int(price * 100))
+	return result
 }
 
 func taobao(shortId string) string {
