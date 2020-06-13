@@ -15,7 +15,9 @@ func FetchPrice(platformId, shortId string) string {
 	case "CA":
 		return amazonC(shortId)
 	case "UA":
-		return amazonU(shortId)
+		return amazonU(shortId, "www.amazon.com")
+	case "AA":
+		return amazonU(shortId, "www.amazon.com.au")
 	case "TAO":
 		return taobao(shortId)
 	default:
@@ -23,7 +25,7 @@ func FetchPrice(platformId, shortId string) string {
 	return "err"
 }
 
-func amazonU(shortId string) string {
+func amazonU(shortId, link string) string {
 	c := colly.NewCollector()
 	var wg sync.WaitGroup
 	var price float64
@@ -51,7 +53,7 @@ func amazonU(shortId string) string {
 		wg.Done()
 	})
 
-	c.Visit("https://www.amazon.com/gp/offer-listing/" + shortId)
+	c.Visit("https://" + link + "/gp/offer-listing/" + shortId)
 	wg.Wait()
 	return strconv.Itoa(int(price * 100))
 }
