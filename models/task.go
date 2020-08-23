@@ -13,7 +13,9 @@ import (
 func FetchPrice(platformId, shortId string) string {
 	switch platformId {
 	case "CA":
-		return amazonC(shortId)
+		return amazonU(shortId, "www.amazon.cn")
+	case "JA":
+		return amazonU(shortId, "www.amazon.co.jp")
 	case "UA":
 		return amazonU(shortId, "www.amazon.com")
 	case "AA":
@@ -42,8 +44,18 @@ func amazonU(shortId, link string) string {
 		nodes := htmlquery.Find(doc, `//div[@class="a-row a-spacing-mini olpOffer"]`)
 		for i := 0; i < len(nodes); i++ {
 			priceNode := htmlquery.Find(nodes[i], `//span[@class="a-size-large a-color-price olpOfferPrice a-text-bold"]`)
-			priceString := strings.Trim(htmlquery.InnerText(priceNode[0]), " ")
-			price, err = strconv.ParseFloat(priceString[1:], 10)
+			priceLine := strings.Trim(htmlquery.InnerText(priceNode[0]), " ")
+			parts := strings.Split(priceLine, " ")
+			var priceString string
+			if len(parts) == 0 {
+				continue
+			} else if len(parts) == 1 {
+				priceString = priceLine[1:]
+			} else {
+				priceString = parts[len(parts)-1]
+			}
+			s := strings.ReplaceAll(priceString, ",", "")
+			price, err = strconv.ParseFloat(s, 10)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -55,41 +67,11 @@ func amazonU(shortId, link string) string {
 
 	c.Visit("https://" + link + "/gp/offer-listing/" + shortId)
 	wg.Wait()
-	return strconv.Itoa(int(price * 100))
-}
-
-func amazonC(shortId string) string {
-	c := colly.NewCollector()
-	var wg sync.WaitGroup
-	var price float64
-	var result string
-
-	wg.Add(1)
-
-	c.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
-
-	c.OnResponse(func(r *colly.Response) {
-		doc, err := htmlquery.Parse(strings.NewReader(string(r.Body)))
-		if err != nil {
-			log.Println(err)
-		}
-		priceNode := htmlquery.Find(doc, `//span[@class="a-size-medium a-color-price priceBlockBuyingPriceString"]`)
-		if len(priceNode) > 0 {
-			priceString := strings.Trim(strings.ReplaceAll(htmlquery.InnerText(priceNode[0])[3:], ",", ""), "")
-			price, err = strconv.ParseFloat(priceString, 10)
-			if err != nil {
-				log.Println(err)
-			}
-			result = strconv.Itoa(int(price * 100))
-		} else {
-			result = "-1"
-		}
-		wg.Done()
-	})
-
-	c.Visit("https://amazon.cn/dp/" + shortId)
-	wg.Wait()
-	return result
+	result := int(price * 100)
+	if result == 0 {
+		result = -1
+	}
+	return strconv.Itoa(result)
 }
 
 func taobao(shortId string) string {
